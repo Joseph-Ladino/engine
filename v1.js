@@ -1,31 +1,32 @@
 "use strict";
 
-// class Mat {
-  
-//   constructor(items = ("0").repeat(4).split(""), len = 0, width = 0) {
+var mycan = document.getElementById("mycan"),
+    canvas = mycan.getContext("2d");
     
-//     if(len < items.length) len = items.length;
-//     if(width < items.length) width = items.length;
+    // fixes width and height
+    mycan.width = mycan.offsetWidth;
+    mycan.height = mycan.offsetHeight;
     
-//     var out = ("0").repeat(len).split("");
-//   	for(var i = 0; i < len; i++) {
-//   	  out[i] = (("0").repeat(width).split(""));
-//   	  for(var j = 0; j < out[i].length; j++) {
-//   	    out[i][j] = parseFloat(out[i][j]);
-//   	  }
-//   	  out[i][i] = (items[i]) ? parseFloat(items[i]) : 0;
-//   	}
-//   	return out;
-//   }
-// }
-
-
-// // Only works for AxA * BxB and AxA * 1x(number) sized matrices
-// function mltMat(mat1, mat2) {
-//   var out = new Mat([0], Math.max(mat1.length, mat2.length), Math.max(mat1[0].length, mat2[0].length)), currentval;
-  
-// }
-
+var objects = [],
+    strokeColor = "black",
+    fillColor = "rgba(0, 255, 0, 0.3)",
+    camera = new Vert3(0, 0, 400),
+    e = new Vert3((mycan.width/2), (mycan.height/2), 270),
+    inter, controllers = [],
+    axes = [],
+    buttons = [],
+    afr,
+    active = "l",
+    lastpressed = 0,
+    rotMode = 1,
+    tx = 0,
+    ty = 0,
+    automove = new Vert2(0, 0),
+    outline = false,
+    vhs = true;
+    camera.orientation = [0, 0, 0];
+    
+    
 function Vert3 (...coords) {
   this.x = parseFloat(coords[0]);
   this.y = parseFloat(coords[1]);
@@ -39,15 +40,15 @@ function Vert2(...coords) {
 }
 
 function rotateX(vert, angle) {
-  var base = {x:vert.x*1, y:vert.y*1, z:vert.z*1}, rad = (360 + angle) * Math.PI/180, cos = Math.cos(rad), sin = Math.sin(rad);
+  var base = {y:vert.y*1, z:vert.z*1}, rad = (360 + angle) * Math.PI/180, cos = Math.cos(rad), sin = Math.sin(rad);
   vert.y =  base.y*cos - base.z*sin;
   vert.z =  base.y*sin + base.z*cos;
   
-  vert.orientation[1] = angle;
+  vert.orientation[0] = angle;
 }
 
 function rotateY(vert, angle) {
-  var base = {x:vert.x*1, y:vert.y*1, z:vert.z*1}, rad = (360 + angle) * Math.PI/180, cos = Math.cos(rad), sin = Math.sin(rad);
+  var base = {x:vert.x*1, z:vert.z*1}, rad = (360 + angle) * Math.PI/180, cos = Math.cos(rad), sin = Math.sin(rad);
   vert.x = base.z*sin + base.x*cos;
   vert.z = -base.x*sin + base.z*cos;
   
@@ -55,15 +56,14 @@ function rotateY(vert, angle) {
 }
 
 function rotateZ(vert, angle) {
-  var base = {x:vert.x*1, y:vert.y*1, z:vert.z*1}, rad = (360 + angle) * Math.PI/180, cos = Math.cos(rad), sin = Math.sin(rad);
+  var base = {x:vert.x*1, y:vert.y*1}, rad = (360 + angle) * Math.PI/180, cos = Math.cos(rad), sin = Math.sin(rad);
   vert.x = base.x*cos - base.y*sin;
   vert.y = base.x*sin + base.y*cos;
   
-  vert.orientation[1] = angle;
+  vert.orientation[2] = angle;
 }
 
 function rotate(vert, angleX, angleY, angleZ) {
-  
   if(angleY) rotateY(vert, vert, angleY);
   if(angleZ) rotateZ(vert, vert, angleZ);
   if(angleX) rotateX(vert, vert, angleX);
@@ -73,7 +73,7 @@ function rotateTo(parentObj, angleX, angleY, angleZ) {
   
   var noRef = [];
   for(var i = 0, temp; i < parentObj.base.length; i++) {
-    temp  = parentObj.base[i];
+    temp  = parentObj.vertices[i];
     noRef[i] = new Vert3(temp.x, temp.y, temp.z);
     
     if(angleY) rotateY(noRef[i], angleY);
@@ -84,56 +84,153 @@ function rotateTo(parentObj, angleX, angleY, angleZ) {
     temp.x = noRef[i].x;
     temp.y = noRef[i].y;
     temp.z = noRef[i].z;
-    temp.orientation = noRef[i].orientation;
   }
 }
 
-function project(obj) {
-  return new Vert2(obj.x, obj.y);
+function backcull(p) {
+  
+  
+  var N = new Vert3(0, 0, 0),
+      T = {x: p[0].x-camera.x, y: p[0].y-camera.y, z: p[0].z-camera.z},
+      vec1 = {x: p[1].x-p[0].x, y: p[1].y-p[0].y, z: p[1].z-p[0].z},
+      vec2 = {x: p[2].x-p[0].x, y: p[2].y-p[0].y, z: p[2].z-p[0].z};
+  
+  // cross product
+  N.x = (vec1.y * vec2.z) - (vec1.z * vec2.y);
+  N.y = (vec1.z * vec2.x) - (vec1.x * vec2.z);
+  N.z = (vec1.x * vec2.y) - (vec1.y * vec2.x);
+  
+  // if the dot product of T and N is greater than 0, discard this polygon
+  if((T.x * N.x) + (T.y * N.y) + (T.z * N.z) >= 0) return true;
+  else return false;
 }
 
-var strokeColor = "black",
-    fillColor = "rgba(0, 255, 0, 0.3)";
+function project(obj, avgZ) {
+  
+  // distance between vertice and camera (per dimension)
+  var x = obj.x - camera.x,
+      y = obj.y - camera.y,
+      z = obj.z - camera.z,
+      
+      // sines of camera orientation
+      sx = Math.sin(camera.orientation[0]*Math.PI/180),
+      sy = Math.sin(camera.orientation[1]*Math.PI/180),
+      sz = Math.sin(camera.orientation[2]*Math.PI/180),
+      
+      // cosines of camera orientation
+      cx = Math.cos(camera.orientation[0]*Math.PI/180),
+      cy = Math.cos(camera.orientation[1]*Math.PI/180),
+      cz = Math.cos(camera.orientation[2]*Math.PI/180),
+      
+      // camera transformation
+      dx = (cy * ((sz*y) + (cz*x))) - (sy*z),
+      dy = (sx * ((cy*z) + (sy*((sz*y) + (cz*x))))) + (cx*((cz*y) - (sz*x))),
+      dz = (cx * ((cy*z) + (sy*((sz*y) + (cz*x))))) - (sx*((cz*y) - (sz*x))),
+      
+      // perspective projection
+      outX = ((e.z/dz)*dx) + e.x,
+      outY = ((e.z/dz)*dy) + e.y;
+  
+  
+  return new Vert2(outX, outY);
+  // return new Vert2(obj.x + e.x, -obj.y + e.y);
+}
 
 function render(objects, canvas, dx, dy) {
   
   // Clears the canvas and sets the colors for stroke and fill
+  canvas.clearRect(0, 0, 2*dx, 2*dy);
   canvas.fillStyle = "black";
   canvas.fillRect(0, 0, 2*dx, 2*dy);
-  canvas.fillStyle = fillColor;
-  canvas.strokeStyle = strokeColor;
   
+  canvas.strokeStyle = strokeColor;
+  canvas.fillStyle = fillColor;
   // loops through parent objects
   for(var i = 0; i < objects.length; i++) {
     
-    // objects[i].vertices.sort((a, b)=>{
-    //   return a.z - b.z;
-    // });
+    e.x = dx + tx;
+    e.y = dy + ty;
+    
+    // outline
+    var ol = [new Vert2(dx*2, dy*2), new Vert2(0, 0)];
+    
+    for(var kawaii = 0, t, t2; kawaii < objects[i].vertices.length; kawaii++) {
+      t = objects[i].base[kawaii];
+      t2 = objects[i].vertices[kawaii];
+      t2.x = t.x * objects[i].size;
+      t2.y = t.y * objects[i].size;
+      t2.z = t.z * objects[i].size;
+    }
+    
+    rotateTo(objects[i], ...objects[i].orientation);
+    
+    var zBuf = [];
     
     // loops through current parent's subobjects
     for(var j = 0; j < objects[i].subObjs.length; j++) {
-      
       // loops through polygons in the current subobject
-      for(var k = 0; k < (objects[i].subObjs[j].polygons).length; k++) {
-       
-    var verts = objects[i].subObjs[j].polygons[k],
-        P = project(verts[0]);
-        
-        canvas.beginPath();
-        canvas.moveTo(P.x + dx, -P.y + dy);
-        
-        // loops through vertices (excluding first one)
-        for(var l = 1; l < verts.length; l++) {
-          
-          P = project(verts[l]);
-          canvas.lineTo(P.x + dx, -P.y + dy);
+      
+      for(var k = 0, tempval; k < (objects[i].subObjs[j].polygons).length; k++) {
+        var zObj = {zval: 0, polygon: [] }, leastbeast = 0;
+        for(var l = 0; l < objects[i].subObjs[j].polygons[k].length; l++) {
+          tempval = e.z - objects[i].subObjs[j].polygons[k][l].z;
+          if(tempval > leastbeast) leastbeast = tempval;
         }
-        
-        // ends path and draws
-        canvas.closePath();
-        canvas.stroke();
-        canvas.fill();
+        zObj.zval = leastbeast;
+        zObj.polygon = objects[i].subObjs[j].polygons[k];
+        if(!backcull(zObj.polygon)) zBuf.push(zObj);
       }
+    }
+    
+    zBuf.sort((a, b)=>{return (a.zval > b.zval) ? -1 : ((a.zval < b.zval) ? 1 : 0)});
+  
+    for(var zCount = 0; zCount < zBuf.length; zCount++) {
+      var verts = zBuf[zCount].polygon,
+        
+      P = project(verts[0]);
+        
+      if(P.x < ol[0].x) ol[0].x = P.x * 1;
+      if(P.x > ol[1].x) ol[1].x = P.x * 1;
+          
+      if(P.y < ol[0].y) ol[0].y = P.y * 1;
+      if(P.y > ol[1].y) ol[1].y = P.y * 1;
+      
+      canvas.beginPath();
+      canvas.moveTo(P.x, P.y);
+        
+      // loops through vertices (excluding first one)
+      for(var lego = 1; lego < verts.length; lego++) {
+        P = project(verts[lego]);
+        canvas.lineTo(P.x, P.y);
+        if(P.x < ol[0].x) ol[0].x = P.x * 1;
+        if(P.x > ol[1].x) ol[1].x = P.x * 1;
+        
+        if(P.y < ol[0].y) ol[0].y = P.y * 1;
+        if(P.y > ol[1].y) ol[1].y = P.y * 1;
+      }
+              // ends path nd draws
+      canvas.closePath();
+      canvas.stroke();
+      canvas.fill();
+    }
+    
+    if(outline) {
+      canvas.beginPath();
+      canvas.moveTo(ol[0].x, ol[0].y);
+      canvas.lineTo(ol[1].x, ol[0].y);
+      canvas.lineTo(ol[1].x, ol[1].y);
+      canvas.lineTo(ol[0].x, ol[1].y);
+      canvas.closePath();
+      canvas.stroke();
+    
+    }
+    
+    if(vhs) {
+      if(ol[1].x > dx*2) {automove.x = -5; tx = mycan.width/2 - (ol[1].x - (tx + mycan.width/2))}
+      else if(ol[0].x < 0) {automove.x = 5; tx -= ol[0].x}
+      
+      if(ol[1].y > dy*2) {automove.y = -5; ty = mycan.height/2 - (ol[1].y - (ty + mycan.height/2))}
+      else if(ol[0].y < 0) {automove.y = 5; ty -= ol[0].y}
     }
   }
 }
@@ -142,17 +239,18 @@ function ParentObj3D(obj) {
   this.base = obj.base;
   this.vertices = obj.vertices;
   this.subObjs = obj.subObjs;
+  this.size = obj.size;
+  this.orientation = [0, 0, 0];
 }
 
 function SubObj3D(obj) {
   this.polygons = obj.polygons;
-  this.parent = obj.parent;
 }
 
 function loadObj(size, fileString) {
   var subObjs = (fileString.indexOf("o ") > -1) ? fileString.split("o ") : fileString.split("g ");
-  subObjs.shift();
-  var parent = {vertices: [new Vert3(0, 0, 0)], base:[new Vert3(0, 0, 0)],  subObjs: []}, d = size/2;
+  // subObjs.shift();
+  var parent = {vertices: [new Vert3(0, 0, 0)], base:[new Vert3(0, 0, 0)],  subObjs: [], size: size/2};
   
   // loops through all subobjects
   for(var i = 0; i < subObjs.length; i++) {
@@ -167,8 +265,8 @@ function loadObj(size, fileString) {
       // create vertex and push it to parent element
       if(temp[0] == "v") {
         var jkrowling = (!isNaN(parseInt(temp[1]))) ? 0 : 1;
-        parent.vertices.push(new Vert3(temp[1+jkrowling]*d, temp[2+jkrowling]*d, temp[3+jkrowling]*d));
-        parent.base.push(new Vert3(temp[1+jkrowling]*d, temp[2+jkrowling]*d, temp[3+jkrowling]*d));
+        parent.vertices.push(new Vert3(temp[1+jkrowling], temp[2+jkrowling], temp[3+jkrowling]));
+        parent.base.push(new Vert3(temp[1+jkrowling], temp[2+jkrowling], temp[3+jkrowling]));
       }
     }
     
@@ -186,7 +284,7 @@ function loadObj(size, fileString) {
     }
     // pushes subobject to parent object
     out.parent = parent;
-    parent.subObjs.push(new SubObj3D(out));
+    if(out.polygons.length > 0) parent.subObjs.push(new SubObj3D(out));
   }
   // pushes parent object to the objects array
   objects.push(new ParentObj3D(parent));
@@ -194,16 +292,18 @@ function loadObj(size, fileString) {
 }
 
 function loadFile(e) {
-  var reader = new FileReader(), input = e.target.files, elm = document.getElementById("objInput"), size = document.getElementById("size");
+  var reader = new FileReader(), input = e.target.files, elm = document.getElementById("objInput"), size = document.getElementById("size"), counter = 0;
   reader.onload = function() {
     var out = reader.result;
     loadObj(size.value, out);
   };
   
-  for(var i = 0; i < input.length; i++) {
-    reader.readAsText(input[i]);
-  }
+  reader.readAsText(input[0]);
   
+  reader.onloadend = function() {
+    counter++;
+    if(counter < input.length-1) reader.readAsText(input[counter]);
+  };
   
   elm.removeEventListener("change", loadFile);
   elm.parentNode.removeChild(elm);
@@ -215,36 +315,12 @@ function loadFile(e) {
 function loop() {
   for(var i = 0, base; i < objects.length; i++) {
     // base = objects[i].base;
-    if(active == "r" && rotMode < 0) rotateTo(objects[i], axes[3]*90, axes[2]*90, false);
-     else {
-      for(var j = 1, vert; j < objects[i].vertices.length; j++) {
-        vert = objects[i].vertices[j];
-        if(active == "l" && rotMode < 0) {
-          rotateY(vert, axes[0]*5);
-          rotateX(vert, axes[1]*5);
-        } else {
-          rotateY(vert, -1);
-          rotateX(vert, 1);
-        }
-      }
-    }
+    if(active == "r" && rotMode < 0) {objects[i].orientation = [axes[3]*90, axes[2]*90, false]; vhs = false}
+    else if(active && rotMode < 0) {objects[i].orientation[0] += axes[1]*5; objects[i].orientation[1] += axes[0]*5; objects[i].orientation[2] = false; vhs = false}
+    else {objects[i].orientation[0] += 1; objects[i].orientation[1] -= 1; objects[i].orientation[2] = false; if(vhs) {tx += automove.x; ty += automove.y}}
   }
-  render(objects, canvas, mycan.width/2, mycan.height/2);
+  render(objects, canvas, (mycan.width/2), mycan.height/2);
 }
-
-
-var objects = [],
-    mycan = document.getElementById("mycan"),
-    canvas = mycan.getContext("2d");
-
-
-// fixes width and height
-mycan.width = mycan.offsetWidth;
-mycan.height = mycan.offsetHeight;
-
-var inter;
-
-var controllers = [], axes = [], buttons = [], afr, active = "r", lastpressed = 0, rotMode = 1;
 
 function inputLoop() {
   buttons = controllers[0].buttons;
@@ -258,6 +334,12 @@ function inputLoop() {
     if(time >= 50) rotMode *= -1;
     lastpressed = 0;
   }
+  
+  objects[0].size += buttons[7].value;
+  objects[0].size -= buttons[6].value;
+  
+  tx += (buttons[15].value - buttons[14].value)*5;
+  ty += (buttons[13].value - buttons[12].value)*5;
   
   afr = requestAnimationFrame(getControllers);
 }

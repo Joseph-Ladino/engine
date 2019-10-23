@@ -15,17 +15,16 @@ var objects = [],
     inter, controllers = [],
     axes = [],
     buttons = [],
+    mkb = {x:e.x,y:e.y,axes:[0,0], keys:{w:false, a:false, s:false, d:false},},
     afr,
-    active = "l",
+    active = "m",
     lastpressed = 0,
     rotMode = 1,
-    speed = 5,
     tx = 0,
     ty = 0,
     automove = new Vert2(0, 0),
-    olColor = "white",
     outline = false,
-    vhs = false;
+    vhs = true;
     camera.orientation = [0, 0, 0];
     
     
@@ -217,7 +216,6 @@ function render(objects, canvas, dx, dy) {
     }
     
     if(outline) {
-      canvas.strokeStyle = olColor;
       canvas.beginPath();
       canvas.moveTo(ol[0].x, ol[0].y);
       canvas.lineTo(ol[1].x, ol[0].y);
@@ -225,10 +223,10 @@ function render(objects, canvas, dx, dy) {
       canvas.lineTo(ol[0].x, ol[1].y);
       canvas.closePath();
       canvas.stroke();
+    
     }
     
     if(vhs) {
-      if(automove.x === 0 || automove.y === 0) automove = {x:10,y:-10};
       if(ol[1].x > dx*2) {automove.x = -5; tx = mycan.width/2 - (ol[1].x - (tx + mycan.width/2))}
       else if(ol[0].x < 0) {automove.x = 5; tx -= ol[0].x}
       
@@ -325,49 +323,29 @@ function loop() {
   render(objects, canvas, (mycan.width/2), mycan.height/2);
 }
 
-function mak(e) {
-  if(e.type == "mousedown") {
-    
-  } else if(e.type == "keyup") {
-    switch(e.keycode) {
-      case 82:
-        active = (active == "r") ? "l" : "r";
-        break;
-      case 87:
-        ty -= speed;
-        break;
-      case 65:
-        tx -= speed;
-        break;
-      case 83:
-        ty += speed;
-        break;
-      case 68:
-        tx += speed;
-        break;
-    }
-  }
-}
-
 function inputLoop() {
   buttons = controllers[0].buttons;
   axes = controllers[0].axes;
-  if(axes[2] !== 0 || axes[3] !== 0) active = "r";
-  if((axes[2] === 0 && axes[3] === 0) && (axes[0] !== 0 || axes[1] !== 0)) active = "l";
-  
-  if(buttons[3].pressed && lastpressed === 0) lastpressed = window.performance.now();
-  else if(!buttons[3].pressed && lastpressed !== 0) {
-    var time = window.performance.now() - lastpressed;
-    if(time >= 50) rotMode *= -1;
-    lastpressed = 0;
+  if(active !== "m") {
+    if(axes[2] !== 0 || axes[3] !== 0) active = "r";
+    if((axes[2] === 0 && axes[3] === 0) && (axes[0] !== 0 || axes[1] !== 0)) active = "l";
+    
+    if(buttons[3].pressed && lastpressed === 0) lastpressed = window.performance.now();
+    else if(!buttons[3].pressed && lastpressed !== 0) {
+      var time = window.performance.now() - lastpressed;
+      if(time >= 50) rotMode *= -1;
+      lastpressed = 0;
+    }
+
+    objects[0].size += buttons[7].value;
+    objects[0].size -= buttons[6].value;
+    
+    tx += (buttons[15].value - buttons[14].value)*5;
+    ty += (buttons[13].value - buttons[12].value)*5;
+  } else {
+
   }
-  
-  objects[0].size += buttons[7].value;
-  objects[0].size -= buttons[6].value;
-  
-  tx += (buttons[15].value - buttons[14].value)*speed;
-  ty += (buttons[13].value - buttons[12].value)*speed;
-  
+
   afr = requestAnimationFrame(getControllers);
 }
 
@@ -400,15 +378,9 @@ function getControllers() {
   afr = requestAnimationFrame(inputLoop);
 }
 
-window.addEventListener("resize", ()=>{
-  mycan.width = mycan.offsetWidth;
-  mycan.height = mycan.offsetHeight;
-  render([objects[0]], canvas, mycan.width/2, mycan.height/2);
-});
-
+window.addEventListener("resize", ()=>{mycan.width = mycan.offsetWidth; mycan.height = mycan.offsetHeight; render([objects[0]], canvas, mycan.width/2, mycan.height/2)});
 window.addEventListener("gamepadconnected", addController);
 window.addEventListener("gamepaddisconnected", removeController);
-window.addEventListener("mousedown", mak);
+window.addEventListener("mousemove", mak);
 window.addEventListener("keyup", mak);
-
 document.getElementById("objInput").addEventListener("change", loadFile);

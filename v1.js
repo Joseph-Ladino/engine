@@ -1,5 +1,10 @@
 "use strict";
 
+/*
+    Written by Joe.L (https://github.com/Joseph-Ladino) (https://twitter.com/DumbPlusPlus)
+    have fun
+*/
+
 var mycan = document.getElementById("mycan"),
     canvas = mycan.getContext("2d");
     
@@ -8,23 +13,12 @@ var mycan = document.getElementById("mycan"),
     mycan.height = mycan.offsetHeight;
     
 var objects = [],
-    strokeColor = "black",
     fillColor = "rgba(0, 255, 0, 0.3)",
     camera = new Vert3(0, 0, 600),
     e = new Vert3((mycan.width/2), (mycan.height/2), 200),
-    inter, controllers = [],
-    axes = [],
-    buttons = [],
-    mkb = {x:e.x,y:e.y,axes:[0,0], keys:{w:false, a:false, s:false, d:false},},
-    afr,
-    active = "m",
-    lastpressed = 0,
-    rotMode = 1,
+    inter,
     tx = 0,
-    ty = 0,
-    automove = new Vert2(0, 0),
-    outline = false,
-    vhs = true;
+    ty = 0;
     camera.orientation = [0, 0, 0];
     
     
@@ -90,7 +84,6 @@ function rotateTo(parentObj, angleX, angleY, angleZ) {
 
 function backcull(p) {
   
-  
   var N = new Vert3(0, 0, 0),
       T = {x: p[0].x-camera.x, y: p[0].y-camera.y, z: p[0].z-camera.z},
       vec1 = {x: p[1].x-p[0].x, y: p[1].y-p[0].y, z: p[1].z-p[0].z},
@@ -132,19 +125,15 @@ function project(obj, avgZ) {
       outX = ((e.z/dz)*dx) + e.x,
       outY = ((e.z/dz)*dy) + e.y;
   
-  
   return new Vert2(outX, outY);
-  // return new Vert2(obj.x + e.x, -obj.y + e.y);
 }
 
 function render(objects, canvas, dx, dy) {
   
   // Clears the canvas and sets the colors for stroke and fill
   canvas.clearRect(0, 0, 2*dx, 2*dy);
-  canvas.fillStyle = "black";
-  canvas.fillRect(0, 0, 2*dx, 2*dy);
   
-  canvas.strokeStyle = strokeColor;
+  canvas.strokeStyle = "black";
   canvas.fillStyle = fillColor;
   // loops through parent objects
   for(var i = 0; i < objects.length; i++) {
@@ -213,25 +202,6 @@ function render(objects, canvas, dx, dy) {
       canvas.closePath();
       canvas.stroke();
       canvas.fill();
-    }
-    
-    if(outline) {
-      canvas.beginPath();
-      canvas.moveTo(ol[0].x, ol[0].y);
-      canvas.lineTo(ol[1].x, ol[0].y);
-      canvas.lineTo(ol[1].x, ol[1].y);
-      canvas.lineTo(ol[0].x, ol[1].y);
-      canvas.closePath();
-      canvas.stroke();
-    
-    }
-    
-    if(vhs) {
-      if(ol[1].x > dx*2) {automove.x = -5; tx = mycan.width/2 - (ol[1].x - (tx + mycan.width/2))}
-      else if(ol[0].x < 0) {automove.x = 5; tx -= ol[0].x}
-      
-      if(ol[1].y > dy*2) {automove.y = -5; ty = mycan.height/2 - (ol[1].y - (ty + mycan.height/2))}
-      else if(ol[0].y < 0) {automove.y = 5; ty -= ol[0].y}
     }
   }
 }
@@ -315,72 +285,11 @@ function loadFile(e) {
 
 function loop() {
   for(var i = 0, base; i < objects.length; i++) {
-    // base = objects[i].base;
-    if(active == "r" && rotMode < 0) {objects[i].orientation = [axes[3]*90, axes[2]*90, false]; vhs = false}
-    else if(active && rotMode < 0) {objects[i].orientation[0] += axes[1]*5; objects[i].orientation[1] += axes[0]*5; objects[i].orientation[2] = false; vhs = false}
-    else {objects[i].orientation[0] += 1; objects[i].orientation[1] -= 1; objects[i].orientation[2] = false; if(vhs) {tx += automove.x; ty += automove.y}}
+    objects[i].orientation = [0, 0, 0];
   }
   render(objects, canvas, (mycan.width/2), mycan.height/2);
 }
 
-function inputLoop() {
-  buttons = controllers[0].buttons;
-  axes = controllers[0].axes;
-  if(active !== "m") {
-    if(axes[2] !== 0 || axes[3] !== 0) active = "r";
-    if((axes[2] === 0 && axes[3] === 0) && (axes[0] !== 0 || axes[1] !== 0)) active = "l";
-    
-    if(buttons[3].pressed && lastpressed === 0) lastpressed = window.performance.now();
-    else if(!buttons[3].pressed && lastpressed !== 0) {
-      var time = window.performance.now() - lastpressed;
-      if(time >= 50) rotMode *= -1;
-      lastpressed = 0;
-    }
-
-    objects[0].size += buttons[7].value;
-    objects[0].size -= buttons[6].value;
-    
-    tx += (buttons[15].value - buttons[14].value)*5;
-    ty += (buttons[13].value - buttons[12].value)*5;
-  } else {
-
-  }
-
-  afr = requestAnimationFrame(getControllers);
-}
-
-function addController(e) {
-  var cont = (e.gamepad) ? e.gamepad : e;
-  controllers[cont.index] = cont;
-  getControllers();
-}
-
-function removeController(e) {
-  var cont = (e.gamepad) ? e.gamepad : e;
-  delete controllers[cont.index];
-  rotMode = 1;
-  if(controllers.length === 0) cancelAnimationFrame(afr);
-}
-
-function getControllers() {
-  if(!("gamepadconnected" in window)) {
-    var pads = navigator.getGamepads ? navigator.getGamepads() : [];
-    for(var i = 0, item; i < pads.length; i++) {
-      item = pads[i];
-      
-      if(!item) continue;
-      
-      if(item.index in controllers) controllers[item.index] = item;
-      else addController(item);
-    }
-  }
-  
-  afr = requestAnimationFrame(inputLoop);
-}
-
 window.addEventListener("resize", ()=>{mycan.width = mycan.offsetWidth; mycan.height = mycan.offsetHeight; render([objects[0]], canvas, mycan.width/2, mycan.height/2)});
-window.addEventListener("gamepadconnected", addController);
-window.addEventListener("gamepaddisconnected", removeController);
-window.addEventListener("mousemove", mak);
-window.addEventListener("keyup", mak);
+
 document.getElementById("objInput").addEventListener("change", loadFile);

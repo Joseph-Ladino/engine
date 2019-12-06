@@ -1,0 +1,25 @@
+{
+  "name": "engine",
+  "version": "0.2.0",
+  "description": "3d engine that does things",
+  "main": "v2/v2.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Joseph-Ladino/engine.git"
+  },
+  "keywords": [
+    "it",
+    "does",
+    "things",
+    "okay"
+  ],
+  "author": "Joseph Ladino",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Joseph-Ladino/engine/issues"
+  },
+  "homepage": "https://github.com/Joseph-Ladino/engine#readme"
+}
